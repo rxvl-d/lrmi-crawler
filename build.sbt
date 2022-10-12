@@ -13,6 +13,7 @@ lazy val root = project
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
     scalaVersion := scala3Version,
     libraryDependencies ++= Seq(
+      "org.apache.any23" % "apache-any23-core" % "2.7",
       "org.jsoup" % "jsoup" % "1.15.3",
       "joda-time" % "joda-time" % "2.11.2",
       "co.fs2" %% "fs2-core" % fs2Version,

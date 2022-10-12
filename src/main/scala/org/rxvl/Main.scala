@@ -3,6 +3,7 @@ package org.rxvl
 import cats.effect.{ExitCode, IO, IOApp}
 import fs2.io.file.{Files, Path}
 import fs2.{Stream, text}
+import org.eclipse.rdf4j.model.{IRI, Resource, Value}
 import org.http4s.ember.client.EmberClientBuilder
 
 import java.io.{BufferedInputStream, BufferedReader, File, FileInputStream}
@@ -11,14 +12,19 @@ import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
 import scala.sys.process.*
 
-object Converter extends IOApp {
+object LRMICrawler extends IOApp {
 
-  def downloadFile() = IO {
+  private def downloadFile = IO {
     val outPath = "/tmp/warc.paths.gz"
     val pb = URL("https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/warc.paths.gz") #> new File(outPath)
     pb.!!
     outPath
   }
+
+  private def checkFile = IO {new File("/tmp/warc.paths.gz").exists()}
+
+  private def downloadFileIfNotExists = checkFile.flatMap(e =>
+    if (e) IO.pure("/tmp/warc.paths.gz") else downloadFile)
 
   def gis(s: String): Stream[IO, String] = fs2.io.readInputStream(
     IO(new GZIPInputStream(new BufferedInputStream(new FileInputStream(s)))),
@@ -30,18 +36,27 @@ object Converter extends IOApp {
 
   def print(in: Any): IO[Unit] = IO(println(in))
 
-  def processFile(fileUrl: String): IO[Unit] = IO(println(s"Starting $fileUrl")).flatMap(_ => {
-    val warcSegments = WARCParser.parse(warcLines("https://data.commoncrawl.org/" ++ fileUrl))
+  def processFile(fileUrl: String): IO[Unit] = {
+    val warcSegments = extract(fileUrl)
     warcSegments.flatMap(s => {
       if (s.nonEmpty) {
         IO(println(s"Found $s in $fileUrl"))
       }
       else IO.pure(())
     })
-  })
+  }
 
-  def processFiles(n: Int, nCores: Int)(files: Stream[IO, String]): IO[Unit] = {
-    files.take(n).parEvalMap(nCores)(processFile).compile.drain
+  def extract(fileUrl: String): IO[List[(String, List[(Resource, IRI, Value)])]] = {
+    WARCParser.parse(
+      fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)).map(_.collect({
+      case WARCResponse(url, LRMI(triples @ _ :: _)) => (url, triples)}))
+  }
+
+  def processFiles(n: Int, nCores: Int, fileFilter: Option[String])(files: Stream[IO, String]): IO[Unit] = {
+    (fileFilter match {
+      case Some(ff) => files.filter(_.contains(ff))
+      case None => files.take(n)
+    }).parEvalMap(nCores)(processFile).compile.drain
   }
 
   def warcLines(spec: String): fs2.Stream[IO, String] = {
@@ -59,13 +74,12 @@ object Converter extends IOApp {
   final def run(args: List[String]): IO[ExitCode] = {
     val nFiles = args.head.toInt
     val nCores = args(1).toInt
-    downloadFile().map(gis).flatMap(processFiles(nFiles, nCores)).map(_ => ExitCode.Success)
+    val fileFilter = args.lift(2)
+    downloadFileIfNotExists
+      .map(gis)
+      .flatMap(processFiles(nFiles, nCores, fileFilter))
+      .map(_ => ExitCode.Success)
   }
-
-//  def run: IO[Unit] = WARCParser.parse(
-//    "/home/rsebastian/Downloads/CC-MAIN-20220807150925-20220807180925-00009.warc").flatMap {
-//    i => IO(println(i.count({case WARCResponse(_, l) => l.isDefined; case _ => false})))
-//  }
 }
 
 case class ProcessedFile(name: String, warcSegments: List[WARCSegment])

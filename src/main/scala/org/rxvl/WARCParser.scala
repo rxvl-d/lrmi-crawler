@@ -12,6 +12,7 @@ import org.eclipse.rdf4j.model.{IRI, Resource, Value}
 import org.joda.time.DateTime
 import org.jsoup.Jsoup
 
+import scala.collection.mutable
 import scala.jdk.CollectionConverters.*
 
 sealed trait WARCSegment
@@ -27,7 +28,7 @@ case class LRMI(recorded: List[(String, String)]) {
 
 class RecordingHandler extends TripleHandler {
   var iri: IRI = null
-  var triples = scala.collection.mutable.Buffer[(Resource, IRI, Value)]()
+  var triples: mutable.Seq[(Resource, IRI, Value)] = scala.collection.mutable.Buffer[(Resource, IRI, Value)]()
   override def startDocument(documentIRI: IRI): Unit = {
     this.iri = documentIRI
   }
@@ -51,7 +52,7 @@ class RecordingHandler extends TripleHandler {
 
 object WARCParser {
 
-  val relevantItemProps = List("learningResourceType", "educationalAlignment", "educationalRole", "isBasedOnUrl")
+  private val relevantItemProps = List("learningResourceType", "educationalAlignment", "educationalRole", "isBasedOnUrl")
   def extractLRMI(url: String, contentType: String, html: String): LRMI = {
     val runner = new Any23(new ExtractorGroup(List(
       new EmbeddedJSONLDExtractorFactory()
@@ -86,14 +87,9 @@ object WARCParser {
     out
   }
 
-  def printItemProp(fileUrl: String)(line: String): IO[String] = IO {
-    if (relevantItemProps.exists(line.contains)) {println(s"$fileUrl: $line")}
-    line
-  }
-
   def parse(fileUrl: String, lines: fs2.Stream[IO, String]): IO[List[WARCSegment]] = {
     lines
-      .evalMap(printItemProp(fileUrl))
+//      .evalMap(printItemProp(fileUrl))
       .groupAdjacentBy(_.startsWith("WARC/1.0"))
       .filter(x => !x._1)
       .map(_._2.toVector)

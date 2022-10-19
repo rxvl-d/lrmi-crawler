@@ -37,26 +37,29 @@ object LRMICrawler extends IOApp {
   def print(in: Any): IO[Unit] = IO(println(in))
 
   def processFile(fileUrl: String): IO[Unit] = {
-    val warcSegments = extract(fileUrl)
-    warcSegments.flatMap(s => {
-      if (s.nonEmpty) {
-        IO(println(s"Found $s in $fileUrl"))
-      }
-      else IO.pure(())
-    })
+    extract(fileUrl).flatMap(s => IO(println(s)))
   }
 
-  def extract(fileUrl: String): IO[List[(String, List[(String, String)])]] = {
+  def extract(fileUrl: String): IO[List[(String, String, String)]] = {
     WARCParser.parse(
-      fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)).map(_.collect({
-      case WARCResponse(url, LRMI(triples @ _ :: _)) => (url, triples)}))
+      fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)
+    ).map(_.collect({
+      case WARCResponse(url, LRMI(triples @ _ :: _)) => triples.map({
+        case (v, o) => (url, v, o)
+      })
+    }).flatten)
   }
 
-  def processFiles(n: Int, nCores: Int, fileFilter: Option[String])(files: Stream[IO, String]): IO[Unit] = {
-    (fileFilter match {
+  def processFiles(nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])(files: Stream[IO, String]): IO[Unit] = {
+    val filtered = fileFilter match {
       case Some(ff) => files.filter(_.contains(ff))
-      case None => files.take(n)
-    }).parEvalMap(nCores)(processFile).compile.drain
+      case None => files
+    }
+    val limited  = nFiles match{
+      case Some(nf) => filtered.take(nf)
+      case None => filtered
+    }
+    limited.parEvalMap(nCores)(processFile).compile.drain
   }
 
   def warcLines(spec: String): fs2.Stream[IO, String] = {
@@ -72,14 +75,14 @@ object LRMICrawler extends IOApp {
   }
 
   final def run(args: List[String]): IO[ExitCode] = {
-    val nFiles = args.head.toInt
-    val nCores = args(1).toInt
+    val nCores = args.head.toInt
+    val nFiles = args.lift(1).map(_.toInt)
     val fileFilter = args.lift(2)
     downloadFileIfNotExists
       .map(gis)
-      .flatMap(processFiles(nFiles, nCores, fileFilter))
+      .flatMap(processFiles(nCores, nFiles, fileFilter))
       .map(_ => ExitCode.Success)
   }
 }
 
-case class ProcessedFile(name: String, warcSegments: List[WARCSegment])
+

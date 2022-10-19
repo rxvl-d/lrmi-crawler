@@ -46,7 +46,7 @@ object LRMICrawler extends IOApp {
     })
   }
 
-  def extract(fileUrl: String): IO[List[(String, List[(Resource, IRI, Value)])]] = {
+  def extract(fileUrl: String): IO[List[(String, List[(String, String)])]] = {
     WARCParser.parse(
       fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)).map(_.collect({
       case WARCResponse(url, LRMI(triples @ _ :: _)) => (url, triples)}))

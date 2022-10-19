@@ -21,6 +21,7 @@ lazy val root = project
       "org.http4s" %% "http4s-dsl" % http4sVersion,
       "org.http4s" %% "http4s-ember-server" % http4sVersion,
       "org.http4s" %% "http4s-ember-client" % http4sVersion,
-      "org.scalameta" %% "munit" % "0.7.29" % Test
+      "org.scalameta" %% "munit" % "0.7.29" % Test//,
+//      "org.typelevel" %% "munit-cats-effect-2" % "2.0.0-M3" % Test
     )
   )

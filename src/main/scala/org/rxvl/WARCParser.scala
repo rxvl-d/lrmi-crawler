@@ -21,8 +21,8 @@ case class WARCResponse(uri: String, lrmi: LRMI) extends WARCSegment
 case class WARCRequest(uri: String) extends WARCSegment
 case object WARCSkip extends WARCSegment
 
-case class LRMI(recorded: List[(Resource, IRI, Value)]) {
-//  def isDefined = learningResourceType.isDefined || isBasedOnUrl.isDefined || audience.isDefined || educationalAlignment.nonEmpty
+case class LRMI(recorded: List[(String, String)]) {
+  def isDefined: Boolean = recorded.nonEmpty
 }
 
 class RecordingHandler extends TripleHandler {
@@ -58,16 +58,9 @@ object WARCParser {
     ).asJava))
     val recorder = new RecordingHandler()
     runner.extract(html, url, contentType, "utf-8", recorder)
-    val triples = recorder.triples.filter({case (s, p, v) => relevantItemProps.exists(p.toString.contains)})
-    LRMI(triples.toList)
-//    val parsed = Jsoup.parse(html)
-//    val jsonLD = parsed.select("script[type=application/ld+json]")
-//    val learningResourceType = Option(parsed.select("[itemprop=learningResourceType]").first()).map(_.toString)
-//    val isBasedOnUrl = Option(parsed.select("[itemprop=isBasedOnUrl]").first()).flatMap(i => Option(i.attr("href")))
-//    val audience = Option(parsed.select("[itemprop=audience] > [itemprop=educationalRole]").first()).map(_.text())
-//    val educationalAlignemnt = parsed.select("[itemprop=educationalAlignment] > [itemprop=targetName]"
-//    ).eachText().asScala.toList
-//    LRMI(learningResourceType, isBasedOnUrl, audience, educationalAlignemnt)
+    val triples = recorder.triples.filter({
+      case (s, p, v) => relevantItemProps.exists(p.toString.contains)})
+    LRMI(triples.toList.map({case (s, p, v) => (p.stringValue(), v.stringValue())}))
   }
 
   def toSegment(segmentChunk: Vector[String]): WARCSegment = {
@@ -105,7 +98,7 @@ object WARCParser {
       .filter(x => !x._1)
       .map(_._2.toVector)
       .map(toSegment)
-//      .filter({case WARCResponse(_, lrmi) => lrmi.isDefined; case _ => false})
+      .filter({case WARCResponse(_, lrmi) => lrmi.isDefined; case _ => false})
       .compile
       .toList
   }

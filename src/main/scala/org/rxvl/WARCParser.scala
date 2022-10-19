@@ -28,7 +28,7 @@ case class LRMI(recorded: List[(String, String)]) {
 
 class RecordingHandler extends TripleHandler {
   var iri: IRI = null
-  var triples: mutable.Seq[(Resource, IRI, Value)] = scala.collection.mutable.Buffer[(Resource, IRI, Value)]()
+  var triples: mutable.Buffer[(Resource, IRI, Value)] = scala.collection.mutable.Buffer[(Resource, IRI, Value)]()
   override def startDocument(documentIRI: IRI): Unit = {
     this.iri = documentIRI
   }

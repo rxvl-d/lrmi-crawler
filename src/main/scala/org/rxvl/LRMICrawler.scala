@@ -35,7 +35,7 @@ object LRMICrawler extends IOApp {
     .compile.last.map(_.get)
 
   def processFile(fileUrl: String): IO[Unit] = {
-    extract(fileUrl).flatMap(s => IO(println(s)))
+    extract(fileUrl).flatMap(s => IO(s.foreach(println)))
   }
 
   def extract(fileUrl: String): IO[List[(String, String, String)]] = {

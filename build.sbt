@@ -12,6 +12,7 @@ lazy val root = project
     version := "0.1.0-SNAPSHOT",
     resolvers ++= Resolver.sonatypeOssRepos("snapshots"),
     scalaVersion := scala3Version,
+    dockerBaseImage := "openjdk:20-oracle",
     libraryDependencies ++= Seq(
       "org.apache.any23" % "apache-any23-core" % "2.7",
       "org.jsoup" % "jsoup" % "1.15.3",

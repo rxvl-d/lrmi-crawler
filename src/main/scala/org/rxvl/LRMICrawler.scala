@@ -34,8 +34,6 @@ object LRMICrawler extends IOApp {
   def countLines(in: Stream[IO, String]): IO[Int] = in.fold(0)((n: Int, _: String) => n + 1)
     .compile.last.map(_.get)
 
-  def print(in: Any): IO[Unit] = IO(println(in))
-
   def processFile(fileUrl: String): IO[Unit] = {
     extract(fileUrl).flatMap(s => IO(println(s)))
   }

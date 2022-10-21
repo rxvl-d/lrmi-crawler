@@ -52,7 +52,25 @@ class RecordingHandler extends TripleHandler {
 
 object WARCParser {
 
-  private val relevantItemProps = List("learningResourceType", "educationalAlignment", "educationalRole", "isBasedOnUrl")
+  private val relevantItemProps = List(
+    "alignmentType",
+    "assesses",
+    "educationalAlignment",
+    "educationalFramework",
+    "educationalLevel",
+    "educationalRole",
+    "educationalUse",
+    "interactivityType",
+    "isBasedOnUrl",
+    "learningResourceType",
+    "targetDescription",
+    "targetName",
+    "targetURL",
+    "teaches",
+    "timeRequired",
+    "typicalAgeRange",
+    "useRightsURL"
+  )
   def extractLRMI(url: String, contentType: String, html: String): LRMI = {
     val runner = new Any23(new ExtractorGroup(List(
       new EmbeddedJSONLDExtractorFactory()

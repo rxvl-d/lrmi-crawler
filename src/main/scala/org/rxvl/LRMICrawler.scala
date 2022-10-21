@@ -10,7 +10,9 @@ import java.io.{BufferedInputStream, BufferedReader, File, FileInputStream}
 import java.net.URL
 import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
-import scala.sys.process.*
+import scala.sys.process._
+
+import scala.concurrent.duration._
 
 object LRMICrawler extends IOApp {
 
@@ -48,25 +50,45 @@ object LRMICrawler extends IOApp {
     }).flatten)
   }
 
-  def processFiles(nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])(files: Stream[IO, String]): IO[Unit] = {
+  def observeProgress(s: Stream[IO, String], total: Int): Stream[IO, String] =
+    s.zipWithIndex.evalTap({case (_, i) => IO{
+      System.err.println(s"$i/$total")
+    }}).map(_._1)
+
+  def processFiles(nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])
+                  (files: Stream[IO, String]): IO[Unit] = {
     val filtered = fileFilter match {
       case Some(ff) => files.filter(_.contains(ff))
       case None => files
     }
-    val limited  = nFiles match{
+    val limited  = nFiles match {
       case Some(nf) => filtered.take(nf)
       case None => filtered
     }
-    limited.parEvalMap(nCores)(processFile).compile.drain
+
+    for {
+      totalFiles <- countLines(limited)
+      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFile).compile.drain
+    } yield ()
+
   }
 
+  private def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
+
+    ioa.handleErrorWith { error =>
+      if (maxRetries > 0)
+        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
+      else
+        IO.raiseError(error)
+    }
+  }
   def warcLines(spec: String): fs2.Stream[IO, String] = {
-    val inputStream = IO({
+    val inputStream = retryWithBackoff(IO({
       val is = new URL(spec).openConnection.getInputStream
       val bis = new BufferedInputStream(is)
       val gis = new GZIPInputStream(bis)
       gis
-    })
+    }), 5.seconds, 5)
     fs2.io.readInputStream[IO](inputStream, 4096, closeAfterUse=true)
       .through(fs2.text.utf8.decode)
       .through(fs2.text.lines)
@@ -76,10 +98,11 @@ object LRMICrawler extends IOApp {
     val nCores = args.head.toInt
     val nFiles = args.lift(1).map(_.toInt)
     val fileFilter = args.lift(2)
-    downloadFileIfNotExists
-      .map(gis)
-      .flatMap(processFiles(nCores, nFiles, fileFilter))
-      .map(_ => ExitCode.Success)
+    for {
+      fileList <- downloadFileIfNotExists.map(gis)
+//      totalFiles <- countLines(fileList)
+      _ <- processFiles(nCores, nFiles, fileFilter)(fileList)
+    } yield ExitCode.Success
   }
 }
 

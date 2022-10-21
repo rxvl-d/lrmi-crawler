@@ -6,13 +6,12 @@ import fs2.{Stream, text}
 import org.eclipse.rdf4j.model.{IRI, Resource, Value}
 import org.http4s.ember.client.EmberClientBuilder
 
-import java.io.{BufferedInputStream, BufferedReader, File, FileInputStream}
+import java.io.{BufferedInputStream, BufferedReader, File, FileInputStream, FileOutputStream}
 import java.net.URL
 import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
-import scala.sys.process._
-
-import scala.concurrent.duration._
+import scala.sys.process.*
+import scala.concurrent.duration.*
 
 object LRMICrawler extends IOApp {
 
@@ -36,9 +35,27 @@ object LRMICrawler extends IOApp {
   def countLines(in: Stream[IO, String]): IO[Int] = in.fold(0)((n: Int, _: String) => n + 1)
     .compile.last.map(_.get)
 
-  def processFile(fileUrl: String): IO[Unit] = {
-    extract(fileUrl).flatMap(s => IO(s.foreach(println)))
-  }
+  def checkIfResultFileExists(fileUrl: String): IO[Boolean] =
+    IO(new File(s"./lrmi-crawler-out/$fileUrl.out").exists())
+
+  def writeToFile(fileUrl: String)
+                 (out: List[(String, String, String)]): IO[Unit] = for {
+    _ <- Stream
+      .evals(IO.pure(out))
+      .map({case (s,v,p) => s"$s,$v,$p"})
+      .through(text.utf8.encode)
+      .through(fs2.io.writeOutputStream[IO](
+        IO(new FileOutputStream(s"./lrmi-crawler-out/$fileUrl.out"))))
+      .compile
+      .drain
+  } yield ()
+
+  def processFile(fileUrl: String): IO[Unit] = for {
+    fileExists <- checkIfResultFileExists(fileUrl)
+    _ <-
+      if (fileExists) IO.pure(())
+      else extract(fileUrl).flatMap(writeToFile(fileUrl))
+  } yield ()
 
   def extract(fileUrl: String): IO[List[(String, String, String)]] = {
     WARCParser.parse(

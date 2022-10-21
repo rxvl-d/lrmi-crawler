@@ -53,7 +53,7 @@ object LRMICrawler extends IOApp {
   def processFile(fileUrl: String): IO[Unit] = for {
     fileExists <- checkIfResultFileExists(fileUrl)
     _ <-
-      if (fileExists) IO.pure(())
+      if (fileExists) IO(System.err.println(s"Skipping $fileUrl because cached."))
       else extract(fileUrl).flatMap(writeToFile(fileUrl))
   } yield ()
 

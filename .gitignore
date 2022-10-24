@@ -1,6 +1,7 @@
 # Data Dir
 
 data 
+*-checkpoint.ipynb
 
 # macOS
 .DS_Store

@@ -6,6 +6,7 @@ import fs2.text
 import org.apache.any23.Any23
 import org.apache.any23.extractor.{ExtractionContext, ExtractorGroup}
 import org.apache.any23.extractor.html.*
+import org.apache.any23.extractor.microdata.MicrodataExtractorFactory
 import org.apache.any23.writer.{LoggingTripleHandler, NTriplesWriter, TripleHandler}
 import org.apache.commons.io.output.ByteArrayOutputStream
 import org.eclipse.rdf4j.model.{IRI, Resource, Value}
@@ -73,7 +74,11 @@ object WARCParser {
   )
   def extractLRMI(url: String, contentType: String, html: String): LRMI = {
     val runner = new Any23(new ExtractorGroup(List(
-      new EmbeddedJSONLDExtractorFactory()
+      new EmbeddedJSONLDExtractorFactory(),
+      new MicrodataExtractorFactory(),
+      new HCardExtractorFactory(),
+      new HTMLMetaExtractorFactory(),
+      new TurtleHTMLExtractorFactory()
     ).asJava))
     val recorder = new RecordingHandler()
     runner.extract(html, url, contentType, "utf-8", recorder)

@@ -36,7 +36,7 @@ object LRMICrawler extends IOApp {
     .compile.last.map(_.get)
 
   def checkIfResultFileExists(fileUrl: String): IO[Boolean] =
-    IO(new File(s"./lrmi-crawler-out/$fileUrl.out").exists())
+    IO(new File(cacheFile(fileUrl)).exists())
 
   def writeToFile(fileUrl: String)
                  (out: List[(String, String, String)]): IO[Unit] = for {
@@ -45,10 +45,15 @@ object LRMICrawler extends IOApp {
       .map({case (s,v,p) => s"$s,$v,$p"})
       .through(text.utf8.encode)
       .through(fs2.io.writeOutputStream[IO](
-        IO(new FileOutputStream(s"./lrmi-crawler-out/$fileUrl.out"))))
+        IO(new FileOutputStream(cacheFile(fileUrl)))))
       .compile
       .drain
   } yield ()
+
+  private def cacheFile(fileUrl: String) = {
+    val sanitized = fileUrl.replace("/", "-")
+    s"./lrmi-crawler-out/$sanitized.out"
+  }
 
   def processFile(fileUrl: String): IO[Unit] = for {
     fileExists <- checkIfResultFileExists(fileUrl)

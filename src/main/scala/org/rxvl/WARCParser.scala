@@ -89,14 +89,15 @@ object WARCParser {
     error => IO(System.err.println(s"ERROR [$url] [$error]")).map(_ => LRMI(Nil))
   })
 
-  def toSegment(segmentChunk: Vector[String]): WARCSegment = {
+  def toSegment(segmentChunk: Vector[String]): IO[WARCSegment] = {
     val headerSeparatorIndex = segmentChunk.indexOf("")
     val (header, content) = segmentChunk.splitAt(headerSeparatorIndex)
     val segmentType = header.find(_.startsWith("WARC-Type")).get.split(": ").last
-    val out = if (segmentType == "warcinfo") {
-      val description = content.find(_.startsWith("description")).get
-      val t = DateTime.parse(header.find(_.startsWith("WARC-Date")).get.split(": ").last)
-      WARCInfo(description, t)
+    if (segmentType == "warcinfo") { IO {
+        val description = content.find(_.startsWith("description")).get
+        val t = DateTime.parse(header.find(_.startsWith("WARC-Date")).get.split(": ").last)
+        WARCInfo(description, t)
+      }.handleError(_ => WARCSkip)
     } else if (segmentType == "response") {
       val responseHeaderSeparatorIndex = content.dropWhile(_ == "").indexOf("")
       val (responseHeader, responseContents) = content.splitAt(responseHeaderSeparatorIndex)
@@ -105,11 +106,10 @@ object WARCParser {
         val responseContent = responseContents.mkString("\n")
         val url = header.find(_.startsWith("WARC-Target-URI")).get.split(": ")(1)
         val lrmi = extractLRMI(url, "text/html", responseContent)
-        WARCResponse(url, lrmi)
-      } else WARCSkip
+        lrmi.map(WARCResponse(url, _))
+      } else IO.pure(WARCSkip)
     }
-    else WARCSkip
-    out
+    else IO.pure(WARCSkip)
   }
 
   def parse(fileUrl: String, lines: fs2.Stream[IO, String]): IO[List[WARCSegment]] = {

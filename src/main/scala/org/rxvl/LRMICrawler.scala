@@ -42,7 +42,7 @@ object LRMICrawler extends IOApp {
                  (out: List[(String, String, String)]): IO[Unit] = for {
     _ <- Stream
       .evals(IO.pure(out))
-      .map({case (s,v,p) => s"$s,$v,$p"})
+      .map({case (s,v,p) => s"$s,$v,$p\n"})
       .through(text.utf8.encode)
       .through(fs2.io.writeOutputStream[IO](
         IO(new FileOutputStream(cacheFile(fileUrl)))))

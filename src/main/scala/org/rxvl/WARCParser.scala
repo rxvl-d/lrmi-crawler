@@ -72,7 +72,7 @@ object WARCParser {
     "typicalAgeRange",
     "useRightsURL"
   )
-  def extractLRMI(url: String, contentType: String, html: String): LRMI = {
+  def extractLRMI(url: String, contentType: String, html: String): IO[LRMI] = IO {
     val runner = new Any23(new ExtractorGroup(List(
       new EmbeddedJSONLDExtractorFactory(),
       new MicrodataExtractorFactory(),
@@ -85,7 +85,9 @@ object WARCParser {
     val triples = recorder.triples.filter({
       case (s, p, v) => relevantItemProps.exists(p.toString.contains)})
     LRMI(triples.toList.map({case (s, p, v) => (p.stringValue(), v.stringValue())}))
-  }
+  }.handleErrorWith({
+    error => IO(System.err.println(s"ERROR [$url] [$error]")).map(_ => LRMI(Nil))
+  })
 
   def toSegment(segmentChunk: Vector[String]): WARCSegment = {
     val headerSeparatorIndex = segmentChunk.indexOf("")

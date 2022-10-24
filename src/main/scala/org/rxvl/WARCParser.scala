@@ -118,7 +118,7 @@ object WARCParser {
       .groupAdjacentBy(_.startsWith("WARC/1.0"))
       .filter(x => !x._1)
       .map(_._2.toVector)
-      .map(toSegment)
+      .evalMap(toSegment)
       .filter({case WARCResponse(_, lrmi) => lrmi.isDefined; case _ => false})
       .compile
       .toList

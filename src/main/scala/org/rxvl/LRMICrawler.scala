@@ -62,6 +62,11 @@ object LRMICrawler extends IOApp {
       else extract(fileUrl).flatMap(writeToFile(fileUrl))
   } yield ()
 
+  def processFileRepeat(fileUrl: String): IO[Unit] = processFile(fileUrl)
+    .handleErrorWith(_ => processFile(fileUrl))
+    .handleErrorWith(err =>
+      IO(System.err.println(s"Skipping $fileUrl because couldn't parse. Error [$err]")))
+
   def extract(fileUrl: String): IO[List[(String, String, String)]] = {
     WARCParser.parse(
       fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)
@@ -90,7 +95,7 @@ object LRMICrawler extends IOApp {
 
     for {
       totalFiles <- countLines(limited)
-      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFile).compile.drain
+      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFileRepeat).compile.drain
     } yield ()
 
   }

@@ -15,21 +15,34 @@ import scala.concurrent.duration.*
 
 object LRMICrawler extends IOApp {
 
-  private def downloadFile = IO {
-    val outPath = "/tmp/warc.paths.gz"
-    val pb = URL("https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/warc.paths.gz") #> new File(outPath)
+  private def downloadFile(startFileUrl: String) = IO {
+    val outPath = localStartFilePath(startFileUrl)
+    val pb = URL(startFileUrl) #> new File(outPath)
     pb.!!
     outPath
   }
 
-  private def checkFile = IO {new File("/tmp/warc.paths.gz").exists()}
+  private def checkFile(startFileUrl: String) = IO {
+    val localFile: String = localStartFilePath(startFileUrl)
+    new File(localFile).exists()
+  }
 
-  private def downloadFileIfNotExists = checkFile.flatMap(e =>
-    if (e) IO.pure("/tmp/warc.paths.gz") else downloadFile)
+  private def localStartFilePath(startFileUrl: String) = {
+    val name = startFileUrl.split("/").last
+    val localFile = s"/tmp/$name"
+    localFile
+  }
 
-  def gis(s: String): Stream[IO, String] = fs2.io.readInputStream(
-    IO(new GZIPInputStream(new BufferedInputStream(new FileInputStream(s)))),
-    1000
+  private def downloadFileIfNotExists(startFileUrl: String) = checkFile(startFileUrl).flatMap(e =>
+    if (e) IO.pure(localStartFilePath(startFileUrl)) else downloadFile(startFileUrl))
+
+  def startFileLines(s: String): Stream[IO, String] = fs2.io.readInputStream(
+    IO({
+      val bis = new BufferedInputStream(new FileInputStream(s))
+      if (s.endsWith("gz")) new GZIPInputStream(bis)
+      else bis
+    }),
+    1024
   ).through(text.utf8.decode).through(text.lines)
 
   def countLines(in: Stream[IO, String]): IO[Int] = in.fold(0)((n: Int, _: String) => n + 1)
@@ -55,21 +68,21 @@ object LRMICrawler extends IOApp {
     s"./lrmi-crawler-out/$sanitized.out"
   }
 
-  def processFile(fileUrl: String): IO[Unit] = for {
+  def processFile(extract: Extract)(fileUrl: String): IO[Unit] = for {
     fileExists <- checkIfResultFileExists(fileUrl)
     _ <-
       if (fileExists) IO(System.err.println(s"Skipping $fileUrl because cached."))
       else extract(fileUrl).flatMap(writeToFile(fileUrl))
   } yield ()
 
-  def processFileRepeat(fileUrl: String): IO[Unit] = processFile(fileUrl)
-    .handleErrorWith(_ => processFile(fileUrl))
+  def processFileRepeat(extract: Extract)(fileUrl: String): IO[Unit] = processFile(extract)(fileUrl)
+    .handleErrorWith(_ => processFile(extract)(fileUrl))
     .handleErrorWith(err =>
       IO(System.err.println(s"Skipping $fileUrl because couldn't parse. Error [$err]")))
 
-  def extract(fileUrl: String): IO[List[(String, String, String)]] = {
+  def extractCC(filePath: String): IO[List[(String, String, String)]] = {
     WARCParser.parse(
-      fileUrl, warcLines("https://data.commoncrawl.org/" ++ fileUrl)
+      gzipUrlToLines("https://data.commoncrawl.org/" ++ filePath)
     ).map(_.collect({
       case WARCResponse(url, LRMI(triples @ _ :: _)) => triples.map({
         case (v, o) => (url, v, o)
@@ -77,12 +90,23 @@ object LRMICrawler extends IOApp {
     }).flatten)
   }
 
+  def toTriple(line: String): (String, String, String) = {
+    val groups = "<(.*)> <(.*)> <(.*)>".r.findAllIn(line).toList
+    (groups(0), groups(1), groups(2))
+  }
+
+  def extractWDC(fileUrl: String): IO[List[(String, String, String)]] = {
+    WDCParser.extractWDC(gzipUrlToLines(fileUrl))
+  }
+
   def observeProgress(s: Stream[IO, String], total: Int): Stream[IO, String] =
     s.zipWithIndex.evalTap({case (_, i) => IO{
       System.err.println(s"$i/$total")
     }}).map(_._1)
 
-  def processFiles(nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])
+  type Extract = String => IO[List[(String, String, String)]]
+  def processFiles(extract: Extract)
+                  (nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])
                   (files: Stream[IO, String]): IO[Unit] = {
     val filtered = fileFilter match {
       case Some(ff) => files.filter(_.contains(ff))
@@ -95,7 +119,7 @@ object LRMICrawler extends IOApp {
 
     for {
       totalFiles <- countLines(limited)
-      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFileRepeat).compile.drain
+      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFileRepeat(extract)).compile.drain
     } yield ()
 
   }
@@ -109,7 +133,7 @@ object LRMICrawler extends IOApp {
         IO.raiseError(error)
     }
   }
-  def warcLines(spec: String): fs2.Stream[IO, String] = {
+  def gzipUrlToLines(spec: String): fs2.Stream[IO, String] = {
     val inputStream = retryWithBackoff(IO({
       val is = new URL(spec).openConnection.getInputStream
       val bis = new BufferedInputStream(is)
@@ -123,14 +147,33 @@ object LRMICrawler extends IOApp {
 
   final def run(args: List[String]): IO[ExitCode] = {
     val nCores = args.head.toInt
-    val nFiles = args.lift(1).map(_.toInt)
-    val fileFilter = args.lift(2)
+    val source = args.lift(1)
+      .map(s => Source(s).getOrElse(throw new Exception(s"Unknown source $s")))
+      .getOrElse(CommonCrawl) // cc / wdc
+    val nFiles = args.lift(2).map(_.toInt)
+    val fileFilter = args.lift(3)
+    val extract = source match {
+      case CommonCrawl => extractCC
+      case WebDataCommons => extractWDC
+    }
+    val startFile = source match {
+      case CommonCrawl => "https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/warc.paths.gz"
+      case WebDataCommons => "http://webdatacommons.org/structureddata/2021-12/files/file.list"
+    }
     for {
-      fileList <- downloadFileIfNotExists.map(gis)
-//      totalFiles <- countLines(fileList)
-      _ <- processFiles(nCores, nFiles, fileFilter)(fileList)
+      fileList <- downloadFileIfNotExists(startFile).map(startFileLines)
+      _ <- processFiles(extract)(nCores, nFiles, fileFilter)(fileList)
     } yield ExitCode.Success
   }
 }
 
-
+sealed trait Source
+case object Source {
+  def apply(asStr: String): Option[Source] = asStr match {
+    case "cc" => Some(CommonCrawl)
+    case "wdc" => Some(WebDataCommons)
+    case _ => None
+  }
+}
+case object CommonCrawl extends Source
+case object WebDataCommons extends Source

@@ -82,12 +82,17 @@ object WARCParser {
     ).asJava))
     val recorder = new RecordingHandler()
     runner.extract(html, url, contentType, "utf-8", recorder)
+    recorder.triples.foreach(println)
     val triples = recorder.triples.filter({
-      case (s, p, v) => relevantItemProps.exists(p.toString.contains)})
+      case (s, p, v) => isRelevantTriple(p.toString)})
     LRMI(triples.toList.map({case (s, p, v) => (p.stringValue(), v.stringValue())}))
   }.handleErrorWith({
     error => IO(System.err.println(s"ERROR [$url] [$error]")).map(_ => LRMI(Nil))
   })
+
+  def isRelevantTriple(p: String): Boolean = {
+    relevantItemProps.exists(p.contains)
+  }
 
   def toSegment(segmentChunk: Vector[String]): IO[WARCSegment] = {
     val headerSeparatorIndex = segmentChunk.indexOf("")
@@ -112,9 +117,8 @@ object WARCParser {
     else IO.pure(WARCSkip)
   }
 
-  def parse(fileUrl: String, lines: fs2.Stream[IO, String]): IO[List[WARCSegment]] = {
+  def parse(lines: fs2.Stream[IO, String]): IO[List[WARCSegment]] = {
     lines
-//      .evalMap(printItemProp(fileUrl))
       .groupAdjacentBy(_.startsWith("WARC/1.0"))
       .filter(x => !x._1)
       .map(_._2.toVector)

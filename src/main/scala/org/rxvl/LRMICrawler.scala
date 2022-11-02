@@ -96,7 +96,7 @@ object LRMICrawler extends IOApp {
   }
 
   def extractWDC(fileUrl: String): IO[List[(String, String, String)]] = {
-    WDCParser.extractWDC(gzipUrlToLines(fileUrl))
+    WDCParser.extractWDC(gzipUrlToLines(fileUrl.replace("http", "https")))
   }
 
   def observeProgress(s: Stream[IO, String], total: Int): Stream[IO, String] =
@@ -124,27 +124,40 @@ object LRMICrawler extends IOApp {
 
   }
 
-  private def retryWithBackoff[A](ioa: IO[A], initialDelay: FiniteDuration, maxRetries: Int): IO[A] = {
+  private def retryWithBackoff[A](ioa: IO[A],
+                                  initialDelay: FiniteDuration,
+                                  maxRetries: Int,
+                                  label: String): IO[A] = {
 
     ioa.handleErrorWith { error =>
       if (maxRetries > 0)
-        IO.sleep(initialDelay) *> retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1)
+        IO.sleep(initialDelay) *>
+          IO(System.err.println(s"Retrying $label because [$error]")) *>
+          retryWithBackoff(ioa, initialDelay * 2, maxRetries - 1, label)
       else
         IO.raiseError(error)
     }
   }
   def gzipUrlToLines(spec: String): fs2.Stream[IO, String] = {
     val inputStream = retryWithBackoff(IO({
-      val is = new URL(spec).openConnection.getInputStream
+      val connection = new URL(spec).openConnection
+      val is = connection.getInputStream
       val bis = new BufferedInputStream(is)
       val gis = new GZIPInputStream(bis)
       gis
-    }), 5.seconds, 5)
+    }), 5.seconds, 5, spec)
     fs2.io.readInputStream[IO](inputStream, 4096, closeAfterUse=true)
       .through(fs2.text.utf8.decode)
       .through(fs2.text.lines)
   }
 
+//  final def run(args: List[String]): IO[ExitCode] =
+//    gzipUrlToLines(args.head.replace("http", "https"))
+//      .take(10)
+//      .evalMap(s => IO(println(s)))
+//      .compile
+//      .drain
+//      .map(_ => ExitCode.Success)
   final def run(args: List[String]): IO[ExitCode] = {
     val nCores = args.head.toInt
     val source = args.lift(1)

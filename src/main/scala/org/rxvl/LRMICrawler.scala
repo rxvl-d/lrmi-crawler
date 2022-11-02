@@ -106,9 +106,11 @@ object LRMICrawler extends IOApp {
                       startTime: DateTime): Stream[IO, String] =
     s.zipWithIndex.evalTap({case (_, i) => IO{
       val duration = new org.joda.time.Duration(startTime, DateTime.now())
-      val timeForOne = duration.toStandardSeconds.getSeconds.toFloat / i
-      val timeForAll = timeForOne * total / 60 / 60
-      System.err.println(s"$i/$total. ETA: $timeForAll hours.")
+      val timeSoFar = duration.toStandardSeconds.getSeconds.toFloat
+      val timeForOne = timeSoFar / i
+      val timeForAll = timeForOne * total
+      val timeLeft = timeForAll - timeSoFar
+      System.err.println(s"$i/$total. Estimated to be done in: ${timeLeft / 60 / 60} hours.")
     }}).map(_._1)
 
   type Extract = String => IO[List[(String, String, String)]]

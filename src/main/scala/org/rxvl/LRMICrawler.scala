@@ -5,6 +5,7 @@ import fs2.io.file.{Files, Path}
 import fs2.{Stream, text}
 import org.eclipse.rdf4j.model.{IRI, Resource, Value}
 import org.http4s.ember.client.EmberClientBuilder
+import org.joda.time.DateTime
 
 import java.io.{BufferedInputStream, BufferedReader, File, FileInputStream, FileOutputStream}
 import java.net.URL
@@ -12,6 +13,7 @@ import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
 import scala.sys.process.*
 import scala.concurrent.duration.*
+import scala.util.Try
 
 object LRMICrawler extends IOApp {
 
@@ -99,14 +101,19 @@ object LRMICrawler extends IOApp {
     WDCParser.extractWDC(gzipUrlToLines(fileUrl.replace("http", "https")))
   }
 
-  def observeProgress(s: Stream[IO, String], total: Int): Stream[IO, String] =
+  def observeProgress(s: Stream[IO, String],
+                      total: Int,
+                      startTime: DateTime): Stream[IO, String] =
     s.zipWithIndex.evalTap({case (_, i) => IO{
-      System.err.println(s"$i/$total")
+      val duration = new org.joda.time.Duration(startTime, DateTime.now())
+      val timeForOne = duration.toStandardSeconds.getSeconds.toFloat / i
+      val timeForAll = timeForOne * total / 60 / 60
+      System.err.println(s"$i/$total. ETA: $timeForAll hours.")
     }}).map(_._1)
 
   type Extract = String => IO[List[(String, String, String)]]
   def processFiles(extract: Extract)
-                  (nCores: Int, nFiles: Option[Int],  fileFilter: Option[String])
+                  (nCores: Int, startTime: DateTime, nFiles: Option[Int],  fileFilter: Option[String])
                   (files: Stream[IO, String]): IO[Unit] = {
     val filtered = fileFilter match {
       case Some(ff) => files.filter(_.contains(ff))
@@ -119,7 +126,7 @@ object LRMICrawler extends IOApp {
 
     for {
       totalFiles <- countLines(limited)
-      _ <- observeProgress(limited, totalFiles).parEvalMap(nCores)(processFileRepeat(extract)).compile.drain
+      _ <- observeProgress(limited, totalFiles, startTime).parEvalMap(nCores)(processFileRepeat(extract)).compile.drain
     } yield ()
 
   }
@@ -163,8 +170,9 @@ object LRMICrawler extends IOApp {
     val source = args.lift(1)
       .map(s => Source(s).getOrElse(throw new Exception(s"Unknown source $s")))
       .getOrElse(CommonCrawl) // cc / wdc
-    val nFiles = args.lift(2).map(_.toInt)
-    val fileFilter = args.lift(3)
+  val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
+  val nFiles = args.lift(3).map(_.toInt)
+  val fileFilter = args.lift(4)
     val extract = source match {
       case CommonCrawl => extractCC
       case WebDataCommons => extractWDC
@@ -175,7 +183,7 @@ object LRMICrawler extends IOApp {
     }
     for {
       fileList <- downloadFileIfNotExists(startFile).map(startFileLines)
-      _ <- processFiles(extract)(nCores, nFiles, fileFilter)(fileList)
+      _ <- processFiles(extract)(nCores, startTime, nFiles, fileFilter)(fileList)
     } yield ExitCode.Success
   }
 }

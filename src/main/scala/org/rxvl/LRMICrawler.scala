@@ -50,35 +50,35 @@ object LRMICrawler extends IOApp {
   def countLines(in: Stream[IO, String]): IO[Int] = in.fold(0)((n: Int, _: String) => n + 1)
     .compile.last.map(_.get)
 
-  def checkIfResultFileExists(fileUrl: String): IO[Boolean] =
-    IO(new File(cacheFile(fileUrl)).exists())
+  def checkIfResultFileExists(label: String, fileUrl: String): IO[Boolean] =
+    IO(new File(cacheFile(label, fileUrl)).exists())
 
-  def writeToFile(fileUrl: String)
+  def writeToFile(label: String, fileUrl: String)
                  (out: List[(String, String, String, String)]): IO[Unit] = for {
     _ <- Stream
       .evals(IO.pure(out))
       .map({case (s,v,p,u) => s"$s,$v,$p,$u\n"})
       .through(text.utf8.encode)
       .through(fs2.io.writeOutputStream[IO](
-        IO(new FileOutputStream(cacheFile(fileUrl)))))
+        IO(new FileOutputStream(cacheFile(label, fileUrl)))))
       .compile
       .drain
   } yield ()
 
-  private def cacheFile(fileUrl: String) = {
+  private def cacheFile(label: String, fileUrl: String) = {
     val sanitized = fileUrl.replace("/", "-")
-    s"./lrmi-crawler-out/$sanitized.out"
+    s"./lrmi-crawler-out-$label/$sanitized.out"
   }
 
-  def processFile(extract: Extract)(fileUrl: String): IO[Unit] = for {
-    fileExists <- checkIfResultFileExists(fileUrl)
+  def processFile(extract: Extract)(label: String, fileUrl: String): IO[Unit] = for {
+    fileExists <- checkIfResultFileExists(label, fileUrl)
     _ <-
       if (fileExists) IO(System.err.println(s"Skipping $fileUrl because cached."))
-      else extract(fileUrl).flatMap(writeToFile(fileUrl))
+      else extract(fileUrl).flatMap(writeToFile(label, fileUrl))
   } yield ()
 
-  def processFileRepeat(extract: Extract)(fileUrl: String): IO[Unit] = processFile(extract)(fileUrl)
-    .handleErrorWith(_ => processFile(extract)(fileUrl))
+  def processFileRepeat(label: String, extract: Extract)(fileUrl: String): IO[Unit] = processFile(extract)(label, fileUrl)
+    .handleErrorWith(_ => processFile(extract)(label, fileUrl))
     .handleErrorWith(err =>
       IO(System.err.println(s"Skipping $fileUrl because couldn't parse. Error [$err]")))
 
@@ -115,7 +115,11 @@ object LRMICrawler extends IOApp {
 
   type Extract = String => IO[List[(String, String, String, String)]]
   def processFiles(extract: Extract)
-                  (nCores: Int, startTime: DateTime, nFiles: Option[Int],  fileFilter: Option[String])
+                  (label: String,
+                   nCores: Int,
+                   startTime: DateTime,
+                   nFiles: Option[Int],
+                   fileFilter: Option[String])
                   (files: Stream[IO, String]): IO[Unit] = {
     val filtered = fileFilter match {
       case Some(ff) => files.filter(_.contains(ff))
@@ -128,7 +132,8 @@ object LRMICrawler extends IOApp {
 
     for {
       totalFiles <- countLines(limited)
-      _ <- observeProgress(limited, totalFiles, startTime).parEvalMap(nCores)(processFileRepeat(extract)).compile.drain
+      _ <- observeProgress(limited, totalFiles, startTime)
+        .parEvalMap(nCores)(processFileRepeat(label, extract)).compile.drain
     } yield ()
 
   }
@@ -185,9 +190,18 @@ object LRMICrawler extends IOApp {
       case WebDataCommons20 => "http://webdatacommons.org/structureddata/2020-12/files/file.list"
       case WebDataCommons19 => "http://webdatacommons.org/structureddata/2019-12/files/file.list"
     }
+    val outLabel = source match {
+      case CommonCrawl => "cc"
+      case WebDataCommons21 => "wdc21"
+      case WebDataCommons20 => "wdc20"
+      case WebDataCommons19 => "wdc19"
+    }
     for {
       fileList <- downloadFileIfNotExists(startFile).map(startFileLines)
-      _ <- processFiles(extract)(nCores, startTime, nFiles, fileFilter)(fileList)
+      _ <- processFiles(
+        extract)(
+        outLabel, nCores, startTime, nFiles, fileFilter)(
+        fileList)
     } yield ExitCode.Success
   }
 }

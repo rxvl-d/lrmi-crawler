@@ -54,10 +54,10 @@ object LRMICrawler extends IOApp {
     IO(new File(cacheFile(fileUrl)).exists())
 
   def writeToFile(fileUrl: String)
-                 (out: List[(String, String, String)]): IO[Unit] = for {
+                 (out: List[(String, String, String, String)]): IO[Unit] = for {
     _ <- Stream
       .evals(IO.pure(out))
-      .map({case (s,v,p) => s"$s,$v,$p\n"})
+      .map({case (s,v,p,u) => s"$s,$v,$p,$u\n"})
       .through(text.utf8.encode)
       .through(fs2.io.writeOutputStream[IO](
         IO(new FileOutputStream(cacheFile(fileUrl)))))
@@ -82,12 +82,12 @@ object LRMICrawler extends IOApp {
     .handleErrorWith(err =>
       IO(System.err.println(s"Skipping $fileUrl because couldn't parse. Error [$err]")))
 
-  def extractCC(filePath: String): IO[List[(String, String, String)]] = {
+  def extractCC(filePath: String): IO[List[(String, String, String, String)]] = {
     WARCParser.parse(
       gzipUrlToLines("https://data.commoncrawl.org/" ++ filePath)
     ).map(_.collect({
       case WARCResponse(url, LRMI(triples @ _ :: _)) => triples.map({
-        case (v, o) => (url, v, o)
+        case (v, o) => (url, v, o, url)
       })
     }).flatten)
   }
@@ -97,7 +97,7 @@ object LRMICrawler extends IOApp {
     (groups(0), groups(1), groups(2))
   }
 
-  def extractWDC(fileUrl: String): IO[List[(String, String, String)]] = {
+  def extractWDC(fileUrl: String): IO[List[(String, String, String, String)]] = {
     WDCParser.extractWDC(gzipUrlToLines(fileUrl.replace("http", "https")))
   }
 
@@ -113,7 +113,7 @@ object LRMICrawler extends IOApp {
       System.err.println(s"$i/$total. Estimated to be done in: ${timeLeft / 60 / 60} hours.")
     }}).map(_._1)
 
-  type Extract = String => IO[List[(String, String, String)]]
+  type Extract = String => IO[List[(String, String, String, String)]]
   def processFiles(extract: Extract)
                   (nCores: Int, startTime: DateTime, nFiles: Option[Int],  fileFilter: Option[String])
                   (files: Stream[IO, String]): IO[Unit] = {
@@ -172,16 +172,18 @@ object LRMICrawler extends IOApp {
     val source = args.lift(1)
       .map(s => Source(s).getOrElse(throw new Exception(s"Unknown source $s")))
       .getOrElse(CommonCrawl) // cc / wdc
-  val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
-  val nFiles = args.lift(3).map(_.toInt)
-  val fileFilter = args.lift(4)
+    val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
+    val nFiles = args.lift(3).map(_.toInt)
+    val fileFilter = args.lift(4)
     val extract = source match {
       case CommonCrawl => extractCC
-      case WebDataCommons => extractWDC
+      case _: WebDataCommons => extractWDC
     }
     val startFile = source match {
       case CommonCrawl => "https://data.commoncrawl.org/crawl-data/CC-MAIN-2022-33/warc.paths.gz"
-      case WebDataCommons => "http://webdatacommons.org/structureddata/2021-12/files/file.list"
+      case WebDataCommons21 => "http://webdatacommons.org/structureddata/2021-12/files/file.list"
+      case WebDataCommons20 => "http://webdatacommons.org/structureddata/2020-12/files/file.list"
+      case WebDataCommons19 => "http://webdatacommons.org/structureddata/2019-12/files/file.list"
     }
     for {
       fileList <- downloadFileIfNotExists(startFile).map(startFileLines)
@@ -194,9 +196,15 @@ sealed trait Source
 case object Source {
   def apply(asStr: String): Option[Source] = asStr match {
     case "cc" => Some(CommonCrawl)
-    case "wdc" => Some(WebDataCommons)
+    case "wdc19" => Some(WebDataCommons19)
+    case "wdc20" => Some(WebDataCommons20)
+    case "wdc21" => Some(WebDataCommons21)
     case _ => None
   }
 }
 case object CommonCrawl extends Source
-case object WebDataCommons extends Source
+
+sealed trait WebDataCommons extends Source
+case object WebDataCommons21 extends WebDataCommons
+case object WebDataCommons20 extends WebDataCommons
+case object WebDataCommons19 extends WebDataCommons

@@ -3,15 +3,15 @@ package org.rxvl
 import cats.effect.IO
 
 object WDCParser {
-  def toTriple(line: String): (String, String, String) = {
+  private def toQuad(line: String) = {
     val segments = line.split("""\s+""")
-    (segments(0), segments(1), segments(2))
+    (segments(0), segments(1), segments(2), segments(3))
   }
 
-  def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String)]] = {
+  def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String, String)]] = {
     lines
       .filter(_.stripLineEnd.nonEmpty)
-      .map(toTriple)
+      .map(toQuad)
       .filter(t => WARCParser.isRelevantTriple(t._2))
       .compile
       .toList

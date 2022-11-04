@@ -22,7 +22,8 @@ class WDCParserTest extends munit.FunSuite {
       (
         "<http://1000lifehacks.com/#organization>",
         "<http://schema.org/educationalLevel>",
-        "<http://1000lifehacks.com/#logo>"
+        "<http://1000lifehacks.com/#logo>",
+        "<http://1000lifehacks.com/how-to-remember-stuff-in-the-morning/>"
       )
     )
     )

@@ -27,11 +27,12 @@ object LRMICrawler extends IOApp {
 
   private def checkFile(startFileUrl: String) = IO {
     val localFile: String = localStartFilePath(startFileUrl)
+    println(s"Checking $localFile")
     new File(localFile).exists()
   }
 
   private def localStartFilePath(startFileUrl: String) = {
-    val name = startFileUrl.replace("/", "-").replace(":", "").last
+    val name = startFileUrl.replace("/", "-").replace(":", "")
     val localFile = s"/tmp/$name"
     localFile
   }

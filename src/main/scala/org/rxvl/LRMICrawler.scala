@@ -19,6 +19,7 @@ object LRMICrawler extends IOApp {
 
   private def downloadFile(startFileUrl: String) = IO {
     val outPath = localStartFilePath(startFileUrl)
+    println(s"Writing to $outPath")
     val pb = URL(startFileUrl) #> new File(outPath)
     pb.!!
     outPath

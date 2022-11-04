@@ -30,7 +30,7 @@ object LRMICrawler extends IOApp {
   }
 
   private def localStartFilePath(startFileUrl: String) = {
-    val name = startFileUrl.split("/").last
+    val name = startFileUrl.replace("/", "-").replace(":", "").last
     val localFile = s"/tmp/$name"
     localFile
   }

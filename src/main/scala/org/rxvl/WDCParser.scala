@@ -3,7 +3,7 @@ package org.rxvl
 import cats.effect.IO
 import org.eclipse.rdf4j.model.Statement
 import org.eclipse.rdf4j.query.QueryResults
-import org.eclipse.rdf4j.rio.helpers.BasicParserSettings
+import org.eclipse.rdf4j.rio.helpers.{BasicParserSettings, NTriplesParserSettings}
 
 import scala.collection.mutable.ListBuffer
 //import cats.implicits.*
@@ -44,6 +44,7 @@ object WDCParser {
     val parser = Rio.createParser(RDFFormat.NQUADS)
     parser.getParserConfig.set(BasicParserSettings.VERIFY_URI_SYNTAX, false)
     parser.getParserConfig.set(BasicParserSettings.VERIFY_RELATIVE_URIS, false)
+    parser.getParserConfig.set(NTriplesParserSettings.FAIL_ON_INVALID_LINES, false)
     val res = QueryResults.parseGraphBackground(
       is,
       "http://data.dws.informatik.uni-mannheim.de/structureddata/",

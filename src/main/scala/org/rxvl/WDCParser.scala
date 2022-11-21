@@ -43,6 +43,7 @@ object WDCParser {
   def extractWDCStream(is: InputStream): IO[List[(String, String, String, String)]] = IO {
     val parser = Rio.createParser(RDFFormat.NQUADS)
     parser.getParserConfig.set(BasicParserSettings.VERIFY_URI_SYNTAX, false)
+    parser.getParserConfig.set(BasicParserSettings.VERIFY_RELATIVE_URIS, false)
     val res = QueryResults.parseGraphBackground(
       is,
       "http://data.dws.informatik.uni-mannheim.de/structureddata/",

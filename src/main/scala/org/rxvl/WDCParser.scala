@@ -1,10 +1,14 @@
 package org.rxvl
 
 import cats.effect.IO
+import org.apache.commons.io.input.ReaderInputStream
+import org.apache.commons.text.io.StringSubstitutorReader
 import org.eclipse.rdf4j.model.Statement
 import org.eclipse.rdf4j.query.QueryResults
 import org.eclipse.rdf4j.rio.helpers.{BasicParserSettings, NTriplesParserSettings}
 
+import java.io.{BufferedInputStream, BufferedReader, FilterReader, InputStreamReader, OutputStreamWriter}
+import java.nio.charset.Charset
 import scala.collection.mutable.ListBuffer
 //import cats.implicits.*
 //import cats.data.Validated.*
@@ -12,6 +16,7 @@ import cats.data.ValidatedNec
 import org.eclipse.rdf4j.rio.{RDFFormat, Rio}
 
 import java.io.InputStream
+import scala.jdk.CollectionConverters.MapHasAsJava
 
 object WDCParser {
 
@@ -40,13 +45,21 @@ object WDCParser {
 //      .toList
 //  }
 
+  def sanitize(stream: InputStream): InputStream = {
+    val fr = new StringSubstitutorReader(
+      new InputStreamReader(stream),
+      new org.apache.commons.text.StringSubstitutor(Map("en_US.UTF-8" -> "en_us").asJava))
+    new ReaderInputStream(fr, Charset.forName("UTF-8"))
+  }
+
   def extractWDCStream(is: InputStream): IO[List[(String, String, String, String)]] = IO {
+    val sanitizedStream = sanitize(is)
     val parser = Rio.createParser(RDFFormat.NQUADS)
     parser.getParserConfig.set(BasicParserSettings.VERIFY_URI_SYNTAX, false)
     parser.getParserConfig.set(BasicParserSettings.VERIFY_RELATIVE_URIS, false)
     parser.getParserConfig.set(NTriplesParserSettings.FAIL_ON_INVALID_LINES, false)
     val res = QueryResults.parseGraphBackground(
-      is,
+      sanitizedStream,
       "http://data.dws.informatik.uni-mannheim.de/structureddata/",
       parser)
     val lrmiStatements = ListBuffer[Statement]()

@@ -141,20 +141,24 @@ object LRMICrawler extends IOApp {
     dataFiles.toList.map(_.getPath)
   }
   final def run(args: List[String]): IO[ExitCode] = {
-    val nCores = args.head.toInt
-    assert(Set("2019", "2020", "2021").contains(args(1)))
-    val source = args(1) match {
-      case "2019" => WebDataCommons19
-      case "2020" => WebDataCommons20
-      case "2021" => WebDataCommons21
+    if (args.head == "debug") {
+      processFile(args(1)).map(_ => ExitCode.Success)
+    } else {
+      val nCores = args.head.toInt
+      assert(Set("2019", "2020", "2021").contains(args(1)))
+      val source = args(1) match {
+        case "2019" => WebDataCommons19
+        case "2020" => WebDataCommons20
+        case "2021" => WebDataCommons21
+      }
+      val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
+      val nFiles = args.lift(3).map(_.toInt)
+      val fileFilter = args.lift(4)
+      for {
+        fileList <- getFiles(source)
+        _ <- processFiles(source, nCores, fileList, startTime, nFiles, fileFilter)
+      } yield ExitCode.Success
     }
-    val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
-    val nFiles = args.lift(3).map(_.toInt)
-    val fileFilter = args.lift(4)
-    for {
-      fileList <- getFiles(source)
-      _ <- processFiles(source, nCores, fileList, startTime, nFiles, fileFilter)
-    } yield ExitCode.Success
   }
 }
 

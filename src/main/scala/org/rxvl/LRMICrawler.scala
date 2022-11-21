@@ -75,8 +75,11 @@ object LRMICrawler extends IOApp {
     _ <-
       if (fileExists) IO(System.err.println(s"Skipping $sourceFilePath because cached."))
       else
-        WDCParser.extractWDC(gzipUrlToLines(sourceFilePath))
-          .flatMap(writeToFile(destFilePath(sourceFilePath)))
+        for {
+          is <- pathToStream(sourceFilePath)
+          lrmiStatements <- WDCParser.extractWDCStream(is)
+          _ <- writeToFile(destFilePath(sourceFilePath))(lrmiStatements)
+        } yield ()
   } yield ()
 
   def processFile(sourceFilePath: String): IO[Unit] =
@@ -121,15 +124,12 @@ object LRMICrawler extends IOApp {
     } yield ()
 
   }
-  def gzipUrlToLines(sourceFilePath: String): fs2.Stream[IO, String] = {
-    val inputStream = IO({
+  def pathToStream(sourceFilePath: String): IO[GZIPInputStream] = {
+    IO({
       val fis = new FileInputStream(new File(sourceFilePath))
       val bis = new BufferedInputStream(fis)
       new GZIPInputStream(bis)
     })
-    fs2.io.readInputStream[IO](inputStream, 4096, closeAfterUse=true)
-      .through(fs2.text.utf8.decode)
-      .through(fs2.text.lines)
   }
 
   def getFiles(source: Source): IO[Seq[String]] = IO {

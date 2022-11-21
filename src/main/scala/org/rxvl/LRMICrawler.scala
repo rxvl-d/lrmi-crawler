@@ -138,7 +138,7 @@ object LRMICrawler extends IOApp {
     val dataFiles = sourceDir.listFiles(new FileFilter {
       override def accept(pathname: File): Boolean = pathname.getName.endsWith(".gz")
     })
-    dataFiles.toList
+    dataFiles.toList.map(_.getPath)
   }
   final def run(args: List[String]): IO[ExitCode] = {
     val nCores = args.head.toInt

@@ -16,12 +16,14 @@ object WDCParser {
 
   private def toQuad(line: String, lineNumber: Long): ValidatedNec[String, (String, String, String, String)] = {
     import cats.implicits._
-    NQUADParser(line).toValidatedNec.bimap(_.map(_.msg + s". N: $lineNumber"), s => (s.s, s.p, s.v, s.url))
+    NQUADParser(line).toValidatedNec.bimap(
+      _.map(_.msg + s". N: $lineNumber"), 
+      s => (s.s, s.p, s.v, s.url))
   }
 
   def logErrors[T](in: ValidatedNec[String, T]): IO[Option[T]] = in.fold(
-    //es => IO.pure(None),
-    es => IO(es.map(System.err.println)).map(_ => None),
+    es => IO.pure(None),
+    //es => IO(es.map(System.err.println)).map(_ => None),
     t => IO.pure(Some(t)))
 
   def observe[T](s: fs2.Stream[IO, Option[T]]): fs2.Stream[IO, Option[T]] = {
@@ -31,8 +33,9 @@ object WDCParser {
           case Some(_) => (countNones, countSomes + 1)
           case None => (countNones + 1, countSomes)
         }
-        if (counts._1 + counts._2 % 10000 == 0) {
-          println(counts)
+        val total = counts._1 + counts._2
+        if (total % 100000 == 0) {
+          println(s"Incorrect ${counts._1 / total}. At $total.")
         }
         (counts, i)
       }
@@ -40,11 +43,11 @@ object WDCParser {
   }
 
   def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String, String)]] = {
-    lines
+    observe(lines
       .filter(_.stripLineEnd.nonEmpty)
       .zipWithIndex
       .map(Function.tupled(toQuad))
-      .evalMap(logErrors)
+      .evalMap(logErrors))
       .collect { case Some(t) => t }
       .filter(t => WARCParser.isRelevantTriple(t._2))
       .compile

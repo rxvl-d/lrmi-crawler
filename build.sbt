@@ -16,7 +16,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       "org.apache.any23" % "apache-any23-core" % "2.7",
       "org.eclipse.rdf4j" % "rdf4j-bom" % "4.2.1",
-//      "org.typelevel" %% "cats-effect" % "2.5.3",
+      "org.parboiled" %% "parboiled" % "2.4.1",
       "org.jsoup" % "jsoup" % "1.15.3",
       "joda-time" % "joda-time" % "2.11.2",
       "co.fs2" %% "fs2-core" % fs2Version,

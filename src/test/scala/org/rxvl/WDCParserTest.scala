@@ -8,10 +8,12 @@ import java.nio.charset.StandardCharsets
 
 class WDCParserTest extends munit.FunSuite {
   test("WDCParser") {
-    val toExtract =
-      """_:node1fm7c5gkjx46202426 <http://schema.org/pricecurrency> "INR"@en_US.UTF-8 <https://www.lihaaj.com/abayas/denim-abaya>   .""".stripMargin
-    val extracted = WDCParser.extractWDCStream(
-      new ByteArrayInputStream(toExtract.getBytes(StandardCharsets.UTF_8))
+    val toExtract = List(
+//      """_:node1fm7c5gkjx42317463 <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://schema.org/WebPage> <http://1956.konyvtar-siofok.hu/index.php/sarkozi-matyas-torkig-bizanccal/>   .""",
+      """_:node1fm7c5gkjx42317463 <http://schema.org/breadcrumb> "Kezdőlap » Forradalom a könyvekben » Sárközi Mátyás: Torkig Bizánccal"@hu <http://1956.konyvtar-siofok.hu/index.php/sarkozi-matyas-torkig-bizanccal/>   .""".stripMargin
+    )
+    val extracted = WDCParser.extractWDC(
+      fs2.Stream.evalSeq(cats.effect.IO(toExtract))
     ).unsafeRunSync()
     assertEquals(extracted, List(
       (

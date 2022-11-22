@@ -1,80 +1,57 @@
 package org.rxvl
 
 import cats.effect.IO
-import org.apache.commons.io.input.ReaderInputStream
-import org.apache.commons.text.io.StringSubstitutorReader
 import org.eclipse.rdf4j.model.Statement
 import org.eclipse.rdf4j.query.QueryResults
 import org.eclipse.rdf4j.rio.helpers.{BasicParserSettings, NTriplesParserSettings}
 
-import java.io.{BufferedInputStream, BufferedReader, FilterReader, InputStreamReader, OutputStreamWriter}
-import java.nio.charset.Charset
+import java.io.{FilterReader, BufferedInputStream, BufferedReader, InputStreamReader, OutputStreamWriter}
 import scala.collection.mutable.ListBuffer
-//import cats.implicits.*
-//import cats.data.Validated.*
 import cats.data.ValidatedNec
 import org.eclipse.rdf4j.rio.{RDFFormat, Rio}
 
 import java.io.InputStream
-import scala.jdk.CollectionConverters.MapHasAsJava
 
 object WDCParser {
 
-//  private def toQuad(line: String, lineNumber: Long): ValidatedNec[String, (String, String, String, String)] = {
-//    val segments = line.split("""\s+""")
-//    val s = segments.lift(0).map(_.validNec).getOrElse(s"$line:$lineNumber s missing".invalidNec)
-//    val v = segments.lift(0).map(_.validNec).getOrElse(s"$line:$lineNumber v missing".invalidNec)
-//    val o = segments.lift(0).map(_.validNec).getOrElse(s"$line:$lineNumber o missing".invalidNec)
-//    val url = segments.lift(0).map(_.validNec).getOrElse(s"$line:$lineNumber url missing".invalidNec)
-//    (s, v, o, url).tupled
-//  }
-//
-//  def logErrors[T](in: ValidatedNec[String, T]): IO[Option[T]] = in.fold(
-//    es => IO(es.map(System.err.println)).map(_ => None),
-//    t => IO.pure(Some(t)))
-//
-//  def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String, String)]] = {
-//    lines
-//      .filter(_.stripLineEnd.nonEmpty)
-//      .zipWithIndex
-//      .map(Function.tupled(toQuad))
-//      .evalMap(logErrors)
-//      .collect { case Some(t) => t }
-//      .filter(t => WARCParser.isRelevantTriple(t._2))
-//      .compile
-//      .toList
-//  }
-
-  def sanitize(stream: InputStream): InputStream = {
-    val fr = new StringSubstitutorReader(
-      new InputStreamReader(stream),
-      new org.apache.commons.text.StringSubstitutor(Map("en_US.UTF-8" -> "en_us").asJava))
-    new ReaderInputStream(fr, Charset.forName("UTF-8"))
+  private def toQuad(line: String, lineNumber: Long): ValidatedNec[String, (String, String, String, String)] = {
+    import cats.implicits._
+    NQUADParser(line).toValidatedNec.bimap(_.map(_.msg + s". N: $lineNumber"), s => (s.s, s.p, s.v, s.url))
   }
 
-  def extractWDCStream(is: InputStream): IO[List[(String, String, String, String)]] = IO {
-    val sanitizedStream = sanitize(is)
-    val parser = Rio.createParser(RDFFormat.NQUADS)
-    parser.getParserConfig.set(BasicParserSettings.VERIFY_URI_SYNTAX, false)
-    parser.getParserConfig.set(BasicParserSettings.VERIFY_RELATIVE_URIS, false)
-    parser.getParserConfig.set(NTriplesParserSettings.FAIL_ON_INVALID_LINES, false)
-    val res = QueryResults.parseGraphBackground(
-      sanitizedStream,
-      "http://data.dws.informatik.uni-mannheim.de/structureddata/",
-      parser)
-    val lrmiStatements = ListBuffer[Statement]()
-    while(res.hasNext) {
-      val statement = res.next()
-      if (lrmiPropURLs.contains(statement.getPredicate.stringValue())) {
-        lrmiStatements.append(statement)
+  def logErrors[T](in: ValidatedNec[String, T]): IO[Option[T]] = in.fold(
+    es => IO.pure(None),
+    // es => IO(es.map(System.err.println)).map(_ => None),
+    t => IO.pure(Some(t)))
+
+  def observe[T](s: fs2.Stream[IO, Option[T]]): fs2.Stream[IO, Option[T]] = {
+    s.evalMapAccumulate((0, 0)) { case ((countNones, countSomes), i) =>
+      IO {
+        val counts = i match {
+          case Some(_) => (countNones, countSomes + 1)
+          case None => (countNones + 1, countSomes)
+        }
+        if (counts._1 + counts._2 % 10000 == 0) {
+          println(counts)
+        }
+        (counts, i)
       }
-    }
-    lrmiStatements.toList.map(s => (
-      s.getSubject.stringValue(),
-      s.getPredicate.stringValue(),
-      s.getObject.stringValue(),
-      s.getContext.stringValue()))
+    }.map(_._2)
   }
+
+  def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String, String)]] = {
+    observe(lines
+      .filter(_.stripLineEnd.nonEmpty)
+      .zipWithIndex
+      .map(Function.tupled(toQuad))
+      .evalMap(logErrors))
+      .collect { case Some(t) => t }
+      .filter(t => WARCParser.isRelevantTriple(t._2))
+      .compile
+      .toList
+  }
+
+
 
   val lrmiProperties = Set(
     LRMIProperty(

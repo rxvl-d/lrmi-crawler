@@ -20,8 +20,8 @@ object WDCParser {
   }
 
   def logErrors[T](in: ValidatedNec[String, T]): IO[Option[T]] = in.fold(
-    es => IO.pure(None),
-    // es => IO(es.map(System.err.println)).map(_ => None),
+    //es => IO.pure(None),
+    es => IO(es.map(System.err.println)).map(_ => None),
     t => IO.pure(Some(t)))
 
   def observe[T](s: fs2.Stream[IO, Option[T]]): fs2.Stream[IO, Option[T]] = {
@@ -40,11 +40,11 @@ object WDCParser {
   }
 
   def extractWDC(lines: fs2.Stream[IO, String]): IO[List[(String, String, String, String)]] = {
-    observe(lines
+    lines
       .filter(_.stripLineEnd.nonEmpty)
       .zipWithIndex
       .map(Function.tupled(toQuad))
-      .evalMap(logErrors))
+      .evalMap(logErrors)
       .collect { case Some(t) => t }
       .filter(t => WARCParser.isRelevantTriple(t._2))
       .compile

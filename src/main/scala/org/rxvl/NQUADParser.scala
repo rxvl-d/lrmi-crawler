@@ -7,8 +7,6 @@ object NQUADParser {
 
   case class Error(msg: String)
 
-  /** Parses the given input into a [[CsvFile]] or an [[Error]] instance.
-   */
   def apply(input: ParserInput): Either[Error, NQStatement] = {
     import Parser.DeliveryScheme.Either
     val parser = new NQUADParser(input)

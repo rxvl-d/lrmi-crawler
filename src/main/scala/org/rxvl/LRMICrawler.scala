@@ -80,7 +80,7 @@ object LRMICrawler extends IOApp {
         } yield ()
     end <- IO(DateTime.now())
     durationSeconds = new org.joda.time.Duration(start, end).getStandardSeconds
-    _ <- System.err.println(s"$sourceFilePath took $durationSeconds")
+    _ <- IO(System.err.println(s"$sourceFilePath took $durationSeconds"))
   } yield ()
 
   def processFile(sourceFilePath: String): IO[Unit] =

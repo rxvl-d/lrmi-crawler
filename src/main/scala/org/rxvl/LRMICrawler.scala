@@ -89,13 +89,13 @@ object LRMICrawler extends IOApp {
   def observeProgress(s: Stream[IO, String],
                       total: Int,
                       startTime: DateTime): Stream[IO, String] =
-    s.zipWithIndex.evalTap({case (_, i) => IO{
+    s.zipWithIndex.evalTap({case (fn, i) => IO{
       val duration = new org.joda.time.Duration(startTime, DateTime.now())
       val timeSoFar = duration.toStandardSeconds.getSeconds.toFloat
       val timeForOne = timeSoFar / i
       val timeForAll = timeForOne * total
       val timeLeft = timeForAll - timeSoFar
-      System.err.println(s"$i/$total. Estimated to be done in: ${timeLeft / 60 / 60} hours.")
+      System.out.println(s"$i/$total [$fn] Estimated to be done in: ${timeLeft / 60 / 60} hours.")
     }}).map(_._1)
 
   def processFiles(source: Source,

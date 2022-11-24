@@ -35,7 +35,7 @@ object WDCParser {
         }
         val total = counts._1 + counts._2
         if (total % 100000 == 0) {
-          println(s"Incorrect ${counts._1 / total}. At $total.")
+          System.err.println(s"Incorrect ${counts._1 / total}. At $total.")
         }
         (counts, i)
       }

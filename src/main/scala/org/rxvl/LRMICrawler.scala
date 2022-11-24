@@ -19,7 +19,6 @@ object LRMICrawler extends IOApp {
 
   private def downloadFile(startFileUrl: String) = IO {
     val outPath = localStartFilePath(startFileUrl)
-    println(s"Writing to $outPath")
     val pb = URL(startFileUrl) #> new File(outPath)
     pb.!!
     outPath
@@ -27,7 +26,6 @@ object LRMICrawler extends IOApp {
 
   private def checkFile(startFileUrl: String) = IO {
     val localFile: String = localStartFilePath(startFileUrl)
-    println(s"Checking $localFile")
     new File(localFile).exists()
   }
 
@@ -73,7 +71,7 @@ object LRMICrawler extends IOApp {
   def processFileIfNotCached(sourceFilePath: String): IO[Unit] = for {
     fileExists <- checkIfResultFileExists(sourceFilePath)
     _ <-
-      if (fileExists) IO(System.err.println(s"Skipping $sourceFilePath because cached."))
+      if (fileExists) IO(System.err.println(s"[${DateTime.now()}]Skipping $sourceFilePath because cached."))
       else
         for {
           lrmiStatements <- WDCParser.extractWDC(pathToStream(sourceFilePath))
@@ -84,7 +82,7 @@ object LRMICrawler extends IOApp {
   def processFile(sourceFilePath: String): IO[Unit] =
     processFileIfNotCached(sourceFilePath)
       .handleErrorWith(err =>
-        IO(System.err.println(s"Skipping $sourceFilePath because couldn't parse. Error [$err]")))
+        IO(System.err.println(s"[${DateTime.now()}] Skipping $sourceFilePath because couldn't parse. Error [$err]")))
 
   def observeProgress(s: Stream[IO, String],
                       total: Int,
@@ -95,7 +93,7 @@ object LRMICrawler extends IOApp {
       val timeForOne = timeSoFar / i
       val timeForAll = timeForOne * total
       val timeLeft = timeForAll - timeSoFar
-      System.out.println(s"$i/$total [$fn] Estimated to be done in: ${timeLeft / 60 / 60} hours.")
+      System.out.println(s"[${DateTime.now()}] $i/$total [$fn] Estimated to be done in: ${timeLeft / 60 / 60} hours.")
     }}).map(_._1)
 
   def processFiles(source: Source,

@@ -28,7 +28,7 @@ def get_files_to_download():
 def download_file(index_filename_url):
     index, (filename, url) = index_filename_url
     print(f'Starting [{index}] {url}')
-    return_value = os.system(f"wget {url} -O {filename}.temp")
+    return_value = os.system(f"wget -q {url} -O {filename}.temp")
     if return_value == 0:
         os.system(f'mv {filename}.temp {filename}')
         print(f'Success [{index}] {url}')

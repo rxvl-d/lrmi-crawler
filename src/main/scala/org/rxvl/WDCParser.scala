@@ -4,6 +4,7 @@ import cats.effect.IO
 import org.eclipse.rdf4j.model.Statement
 import org.eclipse.rdf4j.query.QueryResults
 import org.eclipse.rdf4j.rio.helpers.{BasicParserSettings, NTriplesParserSettings}
+import org.joda.time.DateTime
 
 import java.io.{FilterReader, BufferedInputStream, BufferedReader, InputStreamReader, OutputStreamWriter}
 import scala.collection.mutable.ListBuffer
@@ -34,8 +35,8 @@ object WDCParser {
           case None => (countNones + 1, countSomes)
         }
         val total = counts._1 + counts._2
-        if (total % 100000 == 0) {
-          System.err.println(s"Incorrect ${counts._1 / total}. At $total.")
+        if (total % 1000000 == 0) {
+          System.err.println(s"[${DateTime.now()}] Incorrect ${counts._1 / total}. At $total.")
         }
         (counts, i)
       }

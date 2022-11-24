@@ -5,7 +5,7 @@ import fs2.io.file.{Files, Path}
 import fs2.{Stream, text}
 import org.eclipse.rdf4j.model.{IRI, Resource, Value}
 import org.http4s.ember.client.EmberClientBuilder
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, Duration}
 
 import java.io.{BufferedInputStream, BufferedReader, File, FileFilter, FileInputStream, FileOutputStream}
 import java.net.URL
@@ -79,7 +79,7 @@ object LRMICrawler extends IOApp {
           _ <- writeToFile(destFilePath(sourceFilePath))(lrmiStatements)
         } yield ()
     end <- IO(DateTime.now())
-    durationSeconds = new org.joda.time.Duration(start, end).getStandardSeconds
+    durationSeconds = new Duration(start, end).getStandardSeconds
     _ <- IO(System.err.println(s"$sourceFilePath took $durationSeconds"))
   } yield ()
 

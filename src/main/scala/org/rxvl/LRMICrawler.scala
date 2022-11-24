@@ -69,6 +69,7 @@ object LRMICrawler extends IOApp {
     sourceFilePath.replace("webdatacommons/", "webdatacommons/out/")
 
   def processFileIfNotCached(sourceFilePath: String): IO[Unit] = for {
+    start <- IO(DateTime.now())
     fileExists <- checkIfResultFileExists(sourceFilePath)
     _ <-
       if (fileExists) IO(System.err.println(s"[${DateTime.now()}]Skipping $sourceFilePath because cached."))
@@ -77,6 +78,9 @@ object LRMICrawler extends IOApp {
           lrmiStatements <- WDCParser.extractWDC(pathToStream(sourceFilePath))
           _ <- writeToFile(destFilePath(sourceFilePath))(lrmiStatements)
         } yield ()
+    end <- IO(DateTime.now())
+    durationSeconds = new org.joda.time.Duration(start, end).getStandardSeconds
+    _ <- System.err.println(s"$sourceFilePath took $durationSeconds")
   } yield ()
 
   def processFile(sourceFilePath: String): IO[Unit] =

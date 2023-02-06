@@ -11,6 +11,7 @@ import java.io.{BufferedInputStream, BufferedReader, File, FileFilter, FileInput
 import java.net.URL
 import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
+import scala.concurrent.TimeoutException
 import scala.sys.process.*
 import scala.concurrent.duration.*
 import scala.util.Try
@@ -85,8 +86,13 @@ object LRMICrawler extends IOApp {
 
   def processFile(sourceFilePath: String): IO[Unit] =
     processFileIfNotCached(sourceFilePath)
-      .handleErrorWith(err =>
-        IO(System.err.println(s"[${DateTime.now()}] Skipping $sourceFilePath because couldn't parse. Error [$err]")))
+      .handleErrorWith {
+        case _: TimeoutException => IO(System.err.println(
+          s"[${DateTime.now()}] $sourceFilePath timed out"))
+        case err => IO(System.err.println(
+          s"[${DateTime.now()}] Skipping $sourceFilePath because couldn't parse. Error [$err]"))
+      }
+
 
   def observeProgress(s: Stream[IO, String],
                       total: Int,
@@ -100,24 +106,12 @@ object LRMICrawler extends IOApp {
       System.out.println(s"[${DateTime.now()}] $i/$total [$fn] Estimated to be done in: ${timeLeft / 60 / 60} hours.")
     }}).map(_._1)
 
-  def processFiles(source: Source,
-                   nCores: Int,
+  def processFiles(nCores: Int,
                    fileList: Seq[String],
-                   startTime: DateTime,
-                   nFiles: Option[Int],
-                   fileFilter: Option[String]): IO[Unit] = {
-    val filtered = fileFilter match {
-      case Some(ff) => fileList.filter(_.contains(ff))
-      case None => fileList
-    }
-    val limited  = nFiles match {
-      case Some(nf) => filtered.take(nf)
-      case None => filtered
-    }
+                   startTime: DateTime): IO[Unit] = {
+    val fileStream = fs2.Stream.evalSeq(IO(fileList))
 
-    val fileStream = fs2.Stream.evalSeq(IO(limited))
-
-    val totalFiles = limited.size
+    val totalFiles = fileList.size
 
     for {
       _ <- observeProgress(fileStream, totalFiles, startTime)
@@ -156,11 +150,9 @@ object LRMICrawler extends IOApp {
         case "2021" => WebDataCommons21
       }
       val startTime = args.lift(2).flatMap(s => Try(DateTime.parse(s)).toOption).getOrElse(DateTime.now)
-      val nFiles = args.lift(3).map(_.toInt)
-      val fileFilter = args.lift(4)
       for {
         fileList <- getFiles(source)
-        _ <- processFiles(source, nCores, fileList, startTime, nFiles, fileFilter)
+        _ <- processFiles(nCores, fileList, startTime)
       } yield ExitCode.Success
     }
   }

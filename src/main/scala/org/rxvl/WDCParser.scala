@@ -12,6 +12,7 @@ import cats.data.ValidatedNec
 import org.eclipse.rdf4j.rio.{RDFFormat, Rio}
 
 import java.io.InputStream
+import concurrent.duration.DurationInt
 
 object WDCParser {
 
@@ -47,7 +48,7 @@ object WDCParser {
     observe(lines
       .filter(_.stripLineEnd.nonEmpty)
       .zipWithIndex
-      .map(Function.tupled(toQuad))
+      .evalMap({case (l, n) => IO(toQuad(l, n)).timeout(2.seconds)})
       .evalMap(logErrors))
       .collect { case Some(t) => t }
       .filter(t => WARCParser.isRelevantTriple(t._2))

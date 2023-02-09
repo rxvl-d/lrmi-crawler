@@ -45,13 +45,19 @@ object RDF4JParser {
           .replace(".gz", ".nq")))
   }
 
+  def toTSV(statement: Statement): String = {
+    val subject = statement.getSubject.stringValue()
+    val predicate = statement.getPredicate.stringValue()
+    val obj = statement.getObject.stringValue()
+    val graph = statement.getContext.stringValue()
+    subject + "\t" + predicate + "\t" + obj + "\t" + graph
+  }
   def writeToFile(value: List[Statement], filePath: String): IO[Unit] = {
     val file = Resource.make(
       IO(new java.io.PrintWriter(new java.io.File(filePath))))(
       pw => IO(pw.close()))
-
     file.use { f => IO {
-      value.foreach(f.println)
+      value.map(toTSV).foreach(f.println)
     }}
   }
 }

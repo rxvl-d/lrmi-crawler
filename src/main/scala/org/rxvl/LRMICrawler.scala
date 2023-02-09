@@ -141,6 +141,15 @@ object LRMICrawler extends IOApp {
   final def run(args: List[String]): IO[ExitCode] = {
     if (args.head == "debug") {
       processFile(args(1)).map(_ => ExitCode.Success)
+    }
+    else if (args.head == "jena") {
+      JenaProcessor.processFileJena(args(1)).map(_ => ExitCode.Success)
+    }
+    else if (args.head == "rdf4j") {
+      RDF4JParser.process(args(1)).map(_ => ExitCode.Success)
+    }
+    else if (args.head == "any23") {
+      Any23Processor.process(args(1)).map(_ => ExitCode.Success)
     } else {
       val nCores = args.head.toInt
       assert(Set("2019", "2020", "2021").contains(args(1)))

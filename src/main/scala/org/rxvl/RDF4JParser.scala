@@ -37,7 +37,7 @@ object RDF4JParser {
       val subjects = scala.collection.mutable.Set[RDF4JResource]()
       var lrmiStatements: Long = 0
       var total: Long = 0
-      while (Try(res.hasNext).getOrElse(false)) {
+      while (logError(Try(res.hasNext)).getOrElse(false)) {
         total += 1
         val st = res.next()
         if (WDCParser.lrmiPropURLs.contains(st.getPredicate.stringValue())) {
@@ -83,5 +83,13 @@ object RDF4JParser {
     file.use { f => IO {
       value.map(toTSV).foreach(f.println)
     }}
+  }
+
+  def logError[T](trie: Try[T]): Try[T] = {
+    trie.recoverWith {
+      case e: Exception =>
+        System.err.println(e)
+        trie
+    }
   }
 }

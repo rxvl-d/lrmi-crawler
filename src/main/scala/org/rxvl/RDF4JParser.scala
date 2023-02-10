@@ -70,11 +70,12 @@ object RDF4JParser {
   }
 
   def toTSV(statement: Statement): String = {
+    val separator = "!_SEP_!"
     val subject = statement.getSubject.stringValue()
     val predicate = statement.getPredicate.stringValue()
     val obj = statement.getObject.stringValue()
     val graph = statement.getContext.stringValue()
-    subject + "\t" + predicate + "\t" + obj + "\t" + graph
+    subject + separator + predicate + separator + obj + separator + graph
   }
   def writeToFile(value: List[Statement], filePath: String): IO[Unit] = {
     val file = Resource.make(

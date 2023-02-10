@@ -3,7 +3,7 @@ package org.rxvl
 import cats.Applicative
 import cats.effect.{IO, Resource}
 import org.eclipse.rdf4j.model.Statement
-import org.eclipse.rdf4j.model.{Resource => RDF4JResource}
+import org.eclipse.rdf4j.model.Resource as RDF4JResource
 import org.eclipse.rdf4j.model.impl.LinkedHashModel
 import org.eclipse.rdf4j.query.QueryResults
 import org.eclipse.rdf4j.rio.ParserConfig
@@ -15,6 +15,7 @@ import java.util.function.Consumer
 import java.util.zip.GZIPInputStream
 import scala.collection.mutable.ListBuffer
 import scala.jdk.CollectionConverters.*
+import scala.util.Try
 
 
 object RDF4JParser {
@@ -36,7 +37,7 @@ object RDF4JParser {
       val subjects = scala.collection.mutable.Set[RDF4JResource]()
       var lrmiStatements: Long = 0
       var total: Long = 0
-      while (res.hasNext) {
+      while (Try(res.hasNext).getOrElse(false)) {
         total += 1
         val st = res.next()
         if (WDCParser.lrmiPropURLs.contains(st.getPredicate.stringValue())) {
@@ -54,7 +55,7 @@ object RDF4JParser {
         parser.setStopAtFirstError(false)
         val res = QueryResults.parseGraphBackground(f, "http://example.org/", parser)
         var lrmiSubjects: Long = 0
-        while (res.hasNext) {
+        while (Try(res.hasNext).getOrElse(false)) {
           val st = res.next()
           if (subs.contains(st.getSubject)) {
             lrmiSubjects += 1

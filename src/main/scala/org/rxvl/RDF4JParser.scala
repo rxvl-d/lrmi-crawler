@@ -1,8 +1,11 @@
 package org.rxvl
 
+import cats.Applicative
 import cats.effect.{IO, Resource}
 import org.eclipse.rdf4j.model.Statement
+import org.eclipse.rdf4j.model.{Resource => RDF4JResource}
 import org.eclipse.rdf4j.model.impl.LinkedHashModel
+import org.eclipse.rdf4j.query.QueryResults
 import org.eclipse.rdf4j.rio.ParserConfig
 import org.eclipse.rdf4j.rio.helpers.StatementCollector
 import org.eclipse.rdf4j.rio.nquads.NQuadsParser
@@ -16,33 +19,53 @@ import scala.jdk.CollectionConverters.*
 
 object RDF4JParser {
   def process(filePath: String): IO[Unit] = {
-    val file = Resource.make(
+    val inFile = Resource.make(
       IO(new GZIPInputStream(new FileInputStream(filePath))))(
       is => IO(is.close()))
 
-    file.use { f => IO {
-      val parser = new NQuadsParser()
-      val model = new LinkedHashModel()
-      parser.setRDFHandler(new StatementCollector(model))
-      parser.setStopAtFirstError(false)
-      parser.parse(f, "http://example.org/")
-      val lrmiStatementsBuffer = new ListBuffer[Statement]()
-      model.forEach((t: Statement) =>
-        if (WDCParser.lrmiPropURLs.contains(t.getPredicate.stringValue())) lrmiStatementsBuffer.append(t)
-      )
-      val lrmiStatements = lrmiStatementsBuffer.toList
-      val subjects = lrmiStatements.map(_.getSubject)
-      val lrmiSubjectStatements = subjects.flatMap(s => model.filter(s, null, null).asScala.toList)
+    val outFile = Resource.make(
+      IO(new java.io.PrintWriter(new java.io.File(filePath
+        .replace("webdatacommons", "webdatacommons/out/")
+        .replace(".gz", ".nq")))))(
+      pw => IO(pw.close()))
 
-      println("Found " + lrmiStatements.size + " statements with LRMI predicates. " +
-        lrmiSubjectStatements.size + " statements with LRMI subjects.  " +
-        model.size() + " total statements in " + filePath)
-      lrmiSubjectStatements
-    }}.flatMap(
-      writeToFile(_,
-        filePath
-          .replace("webdatacommons", "webdatacommons/out/")
-          .replace(".gz", ".nq")))
+    val subjects = inFile.use(f => IO {
+      val parser = new NQuadsParser()
+      parser.setStopAtFirstError(false)
+      val res = QueryResults.parseGraphBackground(f, "http://example.org/", parser)
+      val subjects = scala.collection.mutable.Set[RDF4JResource]()
+      var lrmiStatements: Long = 0
+      var total: Long = 0
+      while (res.hasNext) {
+        total += 1
+        val st = res.next()
+        if (WDCParser.lrmiPropURLs.contains(st.getPredicate.stringValue())) {
+          subjects += st.getSubject
+          lrmiStatements += 1
+        }
+        total += 1
+      }
+      (lrmiStatements, total, subjects)
+    })
+
+    subjects.flatMap { case (lrmiStatements, total, subs) =>
+      inFile.use(f => outFile.use(out => IO {
+        val parser = new NQuadsParser()
+        parser.setStopAtFirstError(false)
+        val res = QueryResults.parseGraphBackground(f, "http://example.org/", parser)
+        var lrmiSubjects: Long = 0
+        while (res.hasNext) {
+          val st = res.next()
+          if (subs.contains(st.getSubject)) {
+            lrmiSubjects += 1
+            out.println(toTSV(st))
+          }
+        }
+        println(s"Total statements: $total . " +
+          s"LRMI statements: $lrmiStatements . " +
+          s"LRMI Subjects statements: $lrmiSubjects .")
+      }))
+    }
   }
 
   def toTSV(statement: Statement): String = {

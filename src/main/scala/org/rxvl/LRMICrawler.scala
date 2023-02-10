@@ -115,7 +115,7 @@ object LRMICrawler extends IOApp {
 
     for {
       _ <- observeProgress(fileStream, totalFiles, startTime)
-        .parEvalMap(nCores)(processFile).compile.drain
+        .parEvalMap(nCores)(RDF4JParser.process).compile.drain
     } yield ()
 
   }
@@ -131,7 +131,7 @@ object LRMICrawler extends IOApp {
   }
 
   def getFiles(source: Source): IO[Seq[String]] = IO {
-    val dirPath = s"/nfs/data/webdatacommons/${source.dirName}/"
+    val dirPath = s"${System.getenv("WDC_DIR")}/${source.dirName}/"
     val sourceDir = new File(dirPath)
     val dataFiles = sourceDir.listFiles(new FileFilter {
       override def accept(pathname: File): Boolean = pathname.getName.endsWith(".gz")

@@ -2,6 +2,7 @@ package org.rxvl
 
 import cats.Applicative
 import cats.effect.{IO, Resource}
+import com.opencsv.CSVWriter
 import org.eclipse.rdf4j.model.Statement
 import org.eclipse.rdf4j.model.Resource as RDF4JResource
 import org.eclipse.rdf4j.model.impl.LinkedHashModel
@@ -25,9 +26,9 @@ object RDF4JParser {
       is => IO(is.close()))
 
     val outFile = Resource.make(
-      IO(new java.io.PrintWriter(new java.io.File(filePath
+      IO(new CSVWriter(new java.io.PrintWriter(new java.io.File(filePath
         .replace("webdatacommons", "webdatacommons/out/")
-        .replace(".gz", ".nq")))))(
+        .replace(".gz", ".nq"))))))(
       pw => IO(pw.close()))
 
     val subjects = inFile.use(f => IO {
@@ -59,7 +60,10 @@ object RDF4JParser {
           val st = res.next()
           if (subs.contains(st.getSubject)) {
             lrmiSubjects += 1
-            out.println(toTSV(st))
+            out.writeNext(Array(st.getSubject.stringValue(),
+              st.getPredicate.stringValue(),
+              st.getObject.stringValue(),
+              st.getContext.stringValue()))
           }
         }
         println(s"Total statements: $total . " +
@@ -71,10 +75,10 @@ object RDF4JParser {
 
   def toTSV(statement: Statement): String = {
     val separator = "!_SEP_!"
-    val subject = statement.getSubject.stringValue().replace("\n", "\\n")
-    val predicate = statement.getPredicate.stringValue().replace("\n", "\\n")
-    val obj = statement.getObject.stringValue().replace("\n", "\\n")
-    val graph = statement.getContext.stringValue().replace("\n", "\\n")
+    val subject = statement.getSubject.stringValue()
+    val predicate = statement.getPredicate.stringValue()
+    val obj = statement.getObject.stringValue()
+    val graph = statement.getContext.stringValue()
     subject + separator + predicate + separator + obj + separator + graph
   }
   def writeToFile(value: List[Statement], filePath: String): IO[Unit] = {

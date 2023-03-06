@@ -15,6 +15,7 @@ lazy val root = project
     dockerBaseImage := "openjdk:20-oracle",
     libraryDependencies ++= Seq(
       "org.apache.any23" % "apache-any23-core" % "2.7",
+      "com.opencsv" % "opencsv" % "3.8",
       "org.eclipse.rdf4j" % "rdf4j-bom" % "4.2.1",
       "org.apache.jena" % "apache-jena-libs" % "4.7.0",
       "org.parboiled" %% "parboiled" % "2.4.1",

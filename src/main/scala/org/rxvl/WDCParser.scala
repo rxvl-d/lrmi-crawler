@@ -178,7 +178,21 @@ object WDCParser {
         "http://purl.org/dcx/lrmi-terms/useRightsURL",
         "http://schema.org/license"),
       Set(CreativeWork),
-      Set(RDFURI))
+      Set(RDFURI)),
+    LRMIProperty("courseCode",Set("http://schema.org/courseCode"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("coursePrerequisite",Set("http://schema.org/coursePrerequisite"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("courseSku",Set("http://schema.org/courseSku"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalCredentialAwarded",Set("http://schema.org/educationalCredentialAwarded"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalOutcome",Set("http://schema.org/educationalOutcome"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("hasCourseInstance",Set("http://schema.org/hasCourseInstance"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("subjectOfStudy",Set("http://schema.org/subjectOfStudy"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("alignmentType",Set("http://schema.org/alignmentType"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalFramework",Set("http://schema.org/educationalFramework"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalAlignment",Set("http://schema.org/educationalAlignment"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("learningResourceType",Set("http://schema.org/learningResourceType"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("interactivityType",Set("http://schema.org/interactivityType"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalUse",Set("http://schema.org/educationalUse"), Set(AsYetUndefined),Set(AsYetUndefined)),
+    LRMIProperty("educationalLevel",Set("http://schema.org/educationalLevel"), Set(AsYetUndefined),Set(AsYetUndefined)),  
   )
 
   val lrmiPropURLs = lrmiProperties.flatMap(_.url)
@@ -216,7 +230,16 @@ case object CreativeWork extends RDFTypes {
     "http://schema.org/CreativeWork"
   )
 }
-
+case object Course extends RDFTypes {
+  val urls = Set(
+    "http://schema.org/Course"
+  )
+}
+case object AsYetUndefined extends RDFTypes {
+  val urls = Set(
+    "sorry too lazy"
+  )
+}
 case object RDFString extends RDFTypes {
   val urls = Set("http://www.w3.org/2001/XMLSchema#string")
 }
